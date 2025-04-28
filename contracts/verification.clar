@@ -154,14 +154,23 @@
 
 ;; Update trust tier (only authorized validators can do this)
 (define-public (update-trust-tier (account principal) (new-trust-tier uint))
-  (let ((current-certification (unwrap! (get-identity-certification account) error-identity-not-certified))
-        (account-entry { account: account }))
-    (begin
-      (asserts! (is-validator tx-sender) error-unauthorized)
-      (asserts! (is-valid-trust-tier new-trust-tier) error-invalid-trust-tier)
+  (begin
+    ;; First validate input parameters
+    (asserts! (is-validator tx-sender) error-unauthorized)
+    (asserts! (is-valid-trust-tier new-trust-tier) error-invalid-trust-tier)
+    
+    ;; Then check if account exists and is certified
+    (let ((current-certification (unwrap! (get-identity-certification account) error-identity-not-certified))
+          (account-entry { account: account }))
       
-      ;; Create an updated certification record with the new tier
-      (let ((updated-certification (merge current-certification { trust-tier: new-trust-tier })))
+      ;; Create a safely constructed updated certification record with the new tier
+      (let ((updated-certification {
+              certified: (get certified current-certification),
+              trust-tier: new-trust-tier,
+              certification-timestamp: block-height,
+              identity-proof: (get identity-proof current-certification),
+              validator: (get validator current-certification)
+            }))
         (ok (map-set identity-certification account-entry updated-certification))
       )
     )
